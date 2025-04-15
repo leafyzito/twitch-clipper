@@ -41,6 +41,26 @@ func main() {
 		json.NewEncoder(w).Encode(m)
 	})
 
+	http.HandleFunc("/preview/", func(w http.ResponseWriter, r *http.Request) {
+		channelName := strings.ToLower(strings.TrimPrefix(r.URL.Path, "/preview/"))
+		if channelName == "" {
+			resError(w, "invalid channel name", 400)
+			return
+		}
+
+		path, err := MakePreview(channelName)
+		if err != nil {
+			resError(w, err.Error(), 500)
+			return
+		}
+
+		m := map[string]interface{}{
+			"path": path,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(m)
+	})
+
 	log.Println("Server running on " + httpAddr)
 
 	log.Fatal(http.ListenAndServe(httpAddr, nil))

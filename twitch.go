@@ -15,7 +15,8 @@ import (
 	"time"
 )
 
-var basePath = "/var/www/fi.supa.sh/clips"
+var clipsPath = "./clips"
+var previewsPath = "./previews"
 
 type pCache struct {
 	Expiry time.Time
@@ -109,7 +110,7 @@ func MakeClip(channelName string) (string, error) {
 
 	format := "mp4"
 	clipID := time.Now().Unix()
-	clipPath := fmt.Sprintf("%s/%s/%v.%s", basePath, channelName, clipID, format)
+	clipPath := fmt.Sprintf("%s/%s/%v.%s", clipsPath, channelName, clipID, format)
 
 	buffer := make([][]byte, segmentCount)
 	var wg sync.WaitGroup
@@ -177,4 +178,63 @@ func MakeClip(channelName string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s/%v.%s", channelName, clipID, format), err
+}
+
+func MakePreview(channelName string) (string, error) {
+	// First fetch stream segments
+	segments, err := FetchTwitchStream(channelName, 1)
+	if err != nil {
+		return "", err
+	}
+
+	// Take only the last segment
+	lastSegment := segments[len(segments)-1]
+
+	// Create temporary paths
+	tempDir := fmt.Sprintf("%s/%s/temp", previewsPath, channelName)
+	previewID := time.Now().Unix()
+	previewPath := fmt.Sprintf("%s/%s/%v.jpg", previewsPath, channelName, previewID)
+	tempVideoPath := fmt.Sprintf("%s/temp.ts", tempDir)
+
+	// Ensure directories exist
+	os.MkdirAll(tempDir, os.ModePerm)
+
+	// Download the segment
+	res, err := httpClient.Get(lastSegment)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	// Save segment to temporary file
+	tempFile, err := os.Create(tempVideoPath)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		tempFile.Close()
+		os.Remove(tempVideoPath) // Clean up temp file
+	}()
+
+	_, err = io.Copy(tempFile, res.Body)
+	if err != nil {
+		return "", err
+	}
+
+	// Extract last frame using ffmpeg
+	cmd := exec.Command("ffmpeg",
+		"-hide_banner",
+		"-i", tempVideoPath,
+		"-vframes", "1",
+		"-f", "image2",
+		"-update", "1",
+		previewPath)
+
+	err = cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	// return previewPath, nil
+	return fmt.Sprintf("%s/%v.jpg", channelName, previewID), nil
 }
