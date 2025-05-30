@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-var httpAddr = "localhost:8989"
+var httpAddr = "0.0.0.0:8989"
 
 func resError(w http.ResponseWriter, message string, statusCode int) {
 	m := map[string]interface{}{
@@ -30,6 +30,7 @@ func main() {
 
 		path, err := MakeClip(channelName)
 		if err != nil {
+			log.Println("error making clip", err)
 			resError(w, err.Error(), 500)
 			return
 		}
@@ -50,6 +51,7 @@ func main() {
 
 		path, err := MakePreview(channelName)
 		if err != nil {
+			log.Println("error making preview", err)
 			resError(w, err.Error(), 500)
 			return
 		}
